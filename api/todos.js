@@ -1,48 +1,63 @@
 const express = require('express');
-const fs = require('fs');
-const todos = express.Router();
+const todos = express.Router()
+const { MongoClient } = require('mongodb');
 
-let data = fs.readFileSync('./db/data.json');
-let dataParse = JSON.parse(data);
+const dbName = 'todos';
+const url = 'mongodb+srv://parkwlfod:EALzqyrWQZRjZEMM@cluster0.q1xf9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const client = new MongoClient(url);
 
-todos.get('/', function (req, res) {
-    //   res.send('Hello')-> 윈도우 창에 hello 출력
-  res.send( dataParse ) //data.json 들은 list 배열값 모두 출력
+async function connect(){
+    await client.connect();
+    // console.log('Connected successfully to server');
+    const db = client.db(dbName);
+
+    return db.collection('data');
+}
+
+todos.get('/', async function (req, res) {
+    const collection = await connect();  //DB 접근
+    const findResult = await collection.find({}).toArray();  //DB 작업
+    client.close(); //DB 끊기 , 값이 findResult에 담겨있기 때문에 DB 끊어도 값 안사라짐
+
+     res.send( findResult )
 })
-todos.get('/:id', function (req, res) {
-    let {id} = req.params;
-    let d = dataParse.list.filter((obj)=>obj.id == id);
+todos.get('/:id',async function (req, res) {
+    let id = req.params;
+   
+    const collection = await connect();  
+    const findResult = await collection.find(id).toArray(); 
+    client.close();
 
-    res.send(d)
-})
-
-todos.post('/', function (req, res) {
-    let body = [...dataParse.list, req.body]
-    fs.writeFileSync('./db/data.json',JSON.stringify({list:body}))
-    res.send({list:body})
-})
-
-todos.put('/', function (req, res) {
-    let {id, status} = req.body;    
-    let body = [...dataParse.list].map(obj=>{
-        if(obj.id == id){
-            obj.status = status;
-        }
-        return obj;
-    })
-
-    fs.writeFileSync('./db/data.json',JSON.stringify({list:body}))
-    res.send({list:body})
+    res.send(findResult)
 })
 
-todos.delete('/', function (req, res) {
-    let {id} = req.query;    
-    let body = [...dataParse.list].filter(obj=>obj.id != id);
-
-    fs.writeFileSync('./db/data.json',JSON.stringify({list:body}))
-    res.send({list:body})
+todos.post('/',async function (req, res) {
+    const collection = await connect();
+                       await collection.insertOne(req.body);
+    const findResult = await collection.find({}).toArray();                
+    client.close();
+    res.send(findResult)
 })
 
+//(req, res) 첫번쨰 인자인 req에는 값을 , res는 값을 보내고
+todos.put('/', async function (req, res) {
+    const collection = await connect();
+                       await collection.updateOne({id:req.body.id},{$set:req.body});
+    const findResult = await collection.find({}).toArray();
+    client.close();
+
+    res.send(findResult)
+})
+
+todos.delete('/',async function (req, res) {
+  //  let {id} = req.query; req.body가 아니라 req.query는 ?뒤에가 잡힘 -> {id:1}
+
+    const collection = await connect();
+                       await collection.deleteOne(req.query);
+    const findResult = await collection.find({}).toArray();
+    client.close();
+
+    res.send(findResult)
+})
 
 module.exports = todos;
-{}
